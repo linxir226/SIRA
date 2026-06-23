@@ -20,8 +20,11 @@ conda activate sira
 
 git clone https://github.com/linxir226/SIRA.git
 cd SIRA
+```
 
-# Install PyTorch matching the local CUDA version first. For CUDA 12.4:(you can follow the instructions [here](https://pytorch.org/get-started/locally/))
+Install PyTorch matching your local CUDA version first. The command below is for CUDA 12.4; for other CUDA versions, follow the [official PyTorch installation guide](https://pytorch.org/get-started/locally/).
+
+```bash
 pip install torch==2.6.0 torchvision==0.21.0 \
   --index-url https://download.pytorch.org/whl/cu124
 
