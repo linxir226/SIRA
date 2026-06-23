@@ -2,15 +2,21 @@
 
 Official implementation of **SIRA: Reasoning-Aware Surgical Instrument Segmentation via Query-Anchored Alignment**.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.6.0-EE4C2C.svg)](https://pytorch.org/)
+[![Dataset](https://img.shields.io/badge/Dataset-SurgRS-3F7EBC.svg)](https://huggingface.co/datasets/linxir226/SurgRS)
+[![Checkpoint](https://img.shields.io/badge/Checkpoint-SIRA-lightgrey.svg)](https://huggingface.co/linxir226/SIRA)
+
 Surgical instrument segmentation (SIS) plays a critical role in robotic assistance and surgical workflow analysis. However, most existing SIS methods formulate segmentation as a category-driven localization problem, limiting their ability to capture procedural context and task-dependent semantics in surgical workflows. We introduce Reasoning-Aware Surgical Instrument Segmentation (RA-SIS), a task formulation that frames segmentation as query-conditioned inference under surgical context. To benchmark this setting, we construct SurgRS, a surgical reasoning segmentation dataset consisting of 41,000 image-text pairs, which aligns instance-level masks with structured query-answer supervision to enable semantic grounding at the pixel level. Based on SurgRS, we propose Surgical Instrument Reasoning and Segmentation Assistant (SIRA), a multimodal framework that disentangles target-level and query-level semantics and integrates them with visual features through query-anchored dual alignment. By aligning query semantics with spatial features and segmentation prompts, SIRA enhances semantic-visual consistency in mask prediction. Extensive experiments on SurgRS demonstrate improvements over existing reasoning-aware baselines.
 
-## Overview
+## <span>&#x1F525;</span> Overview
 
 <p align="center">
   <img src="assets/2model.png" alt="Overview of the SIRA framework" width="100%">
 </p>
 
-## Installation
+## <span>&#x1F6E0;&#xFE0F;</span> Installation
 
 We use Python 3.11, PyTorch 2.6.0, and CUDA 12.4.
 
@@ -34,7 +40,7 @@ pip install -e . --no-deps
 
 `pip install -e .` compiles the SAM 2 CUDA extension. A working CUDA toolkit and compiler are therefore required.
 
-## Pretrained Models
+## <span>&#x1F4E6;</span> Pretrained Models
 
 SIRA requires three upstream pretrained components.
 
@@ -55,7 +61,7 @@ checkpoints/
 
 Alternative locations can be set in `scripts/config.sh` or passed through the corresponding environment variables.
 
-## Dataset
+## <span>&#x1F4CA;</span> Dataset
 
 SurgRS is available on Hugging Face: [linxir226/SurgRS](https://huggingface.co/datasets/linxir226/SurgRS).
 
@@ -80,7 +86,7 @@ $DATA_ROOT/
 
 The datasets and generated annotations are not included in this repository. Users must follow the licenses and access terms of the source datasets.
 
-## Training
+## <span>&#x1F680;</span> Training
 
 ```bash
 DATA_ROOT=/path/to/datasets OUTPUT_DIR=./outputs bash scripts/train.sh
@@ -123,7 +129,7 @@ OUTPUT_DIR=./outputs \
 bash scripts/train.sh --resume ./outputs/<EXP_NAME>/ckpt_model
 ```
 
-## Inference
+## <span>&#x1F50D;</span> Inference
 
 Trained SIRA checkpoints will be released at [linxir226/SIRA](https://huggingface.co/linxir226/SIRA). Until then, inference requires a checkpoint produced by the training script.
 
@@ -156,7 +162,7 @@ CHECKPOINT_PATH=./checkpoints/sira/ckpt_model \
 bash scripts/valid_inference_classes.sh
 ```
 
-## Citation
+## <span>&#x1F31F;</span> Citation
 
 ```bibtex
 @misc{zhang2026sira,
@@ -167,11 +173,11 @@ bash scripts/valid_inference_classes.sh
 }
 ```
 
-## License
+## <span>&#x1F4DD;</span> License
 
 This project is released under the MIT License. See [LICENSE](LICENSE) for details.
 
-## Acknowledgements
+## <span>&#x1F396;&#xFE0F;</span> Acknowledgements
 
 This work is built upon [VRS-HQ](https://github.com/SitongGong/VRS-HQ), [Chat-UniVi](https://github.com/PKU-YuanGroup/Chat-UniVi), [VISA](https://github.com/cilinyan/VISA), and [SAM 2](https://github.com/facebookresearch/sam2). We sincerely thank the authors for their excellent contributions.
 
