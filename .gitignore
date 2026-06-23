@@ -1,0 +1,26 @@
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+runs/
+outputs/
+vis_output/
+data/
+
+# Local pretrained models and downloaded checkpoints.
+checkpoints/**
+!checkpoints/.gitkeep
+!checkpoints/download_ckpts.sh
+
+*.log
+events.out.tfevents.*
+.DS_Store
+.idea/
+.vscode/
+
+# Keep papers linked from the README instead of committing downloaded copies.
+assets/*.pdf
