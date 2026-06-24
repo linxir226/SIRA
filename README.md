@@ -8,7 +8,7 @@ Official implementation of **SIRA: Reasoning-Aware Surgical Instrument Segmentat
 [![Dataset](https://img.shields.io/badge/Dataset-SurgRS-3F7EBC.svg)](https://huggingface.co/datasets/linxir226/SurgRS)
 [![Checkpoint](https://img.shields.io/badge/Checkpoint-SIRA-lightgrey.svg)](https://huggingface.co/linxir226/SIRA)
 
-Surgical instrument segmentation (SIS) plays a critical role in robotic assistance and surgical workflow analysis. However, most existing SIS methods formulate segmentation as a category-driven localization problem, limiting their ability to capture procedural context and task-dependent semantics in surgical workflows. We introduce Reasoning-Aware Surgical Instrument Segmentation (RA-SIS), a task formulation that frames segmentation as query-conditioned inference under surgical context. To benchmark this setting, we construct SurgRS, a surgical reasoning segmentation dataset consisting of 41,000 image-text pairs, which aligns instance-level masks with structured query-answer supervision to enable semantic grounding at the pixel level. Based on SurgRS, we propose Surgical Instrument Reasoning and Segmentation Assistant (SIRA), a multimodal framework that disentangles target-level and query-level semantics and integrates them with visual features through query-anchored dual alignment. By aligning query semantics with spatial features and segmentation prompts, SIRA enhances semantic-visual consistency in mask prediction. Extensive experiments on SurgRS demonstrate improvements over existing reasoning-aware baselines.
+**Surgical instrument segmentation (SIS)** plays a critical role in robotic assistance and surgical workflow analysis. However, most existing SIS methods formulate segmentation as a category-driven localization problem, limiting their ability to capture procedural context and task-dependent semantics in surgical workflows. We introduce **Reasoning-Aware Surgical Instrument Segmentation (RA-SIS)**, a task formulation that frames segmentation as query-conditioned inference under surgical context. To benchmark this setting, we construct **SurgRS**, a surgical reasoning segmentation dataset consisting of 41,000 image-text pairs, which aligns instance-level masks with structured query-answer supervision to enable semantic grounding at the pixel level. Based on SurgRS, we propose **Surgical Instrument Reasoning and Segmentation Assistant (SIRA)**, a multimodal framework that disentangles target-level and query-level semantics and integrates them with visual features through **query-anchored dual alignment**. By aligning query semantics with spatial features and segmentation prompts, SIRA enhances semantic-visual consistency in mask prediction. Extensive experiments on SurgRS demonstrate improvements over existing reasoning-aware baselines.
 
 ## <span>&#x1F525;</span> Overview
 
@@ -84,18 +84,17 @@ $DATA_ROOT/
     └── valid/
 ```
 
-The datasets and generated annotations are not included in this repository. Users must follow the licenses and access terms of the source datasets.
-
 ## <span>&#x1F680;</span> Training
 
 ```bash
 DATA_ROOT=/path/to/datasets OUTPUT_DIR=./outputs bash scripts/train.sh
 ```
 
-GPU IDs, port, experiment name, and output root are configured in `scripts/config.sh`. The default configuration uses GPUs 0 and 1 and writes training outputs to `./outputs/sira`. A single-GPU run can be launched without editing the script:
+GPU IDs, port, experiment name, and output root are configured in `scripts/config.sh`. The default configuration uses GPUs 0 and 1 and writes training outputs to `./outputs/sira`. A single-GPU run can be launched without editing the script, but `steps_per_epoch` should be doubled to keep the same number of processed samples per epoch as the two-GPU setting:
 
 ```bash
-GPU_IDS=0 DATA_ROOT=/path/to/datasets OUTPUT_DIR=./outputs bash scripts/train.sh
+GPU_IDS=0 DATA_ROOT=/path/to/datasets OUTPUT_DIR=./outputs \
+bash scripts/train.sh --steps_per_epoch 13000
 ```
 
 The reported experiments use two RTX 3090 GPUs, a per-GPU batch size of 1, and no gradient accumulation. The script performs 6,500 distributed optimizer steps per epoch, corresponding to 13,000 processed samples per epoch across both GPUs.
@@ -117,7 +116,28 @@ outputs/
             └── *_optim_states.pt
 ```
 
-`ckpt_model/` is the complete DeepSpeed checkpoint directory. The `meta_log_epoch*.pth` files only record epoch and metric information and cannot be used as model weights.
+`ckpt_model/` is the complete DeepSpeed checkpoint directory and is the default format used by the provided training and inference scripts. The `meta_log_epoch*.pth` files only record epoch and metric information and cannot be used as model weights.
+
+To convert a DeepSpeed checkpoint into a consolidated fp32 state dict, use the `zero_to_fp32.py` script inside the checkpoint directory:
+
+```bash
+python ./outputs/<EXP_NAME>/ckpt_model/zero_to_fp32.py \
+  ./outputs/<EXP_NAME>/ckpt_model \
+  ./outputs/<EXP_NAME>/pytorch_model.bin
+```
+
+The resulting `pytorch_model.bin` can be further merged with the LoRA adapters and saved in Hugging Face format:
+
+```bash
+python merge_lora_weights/merge_lora_weights.py \
+  --version ./checkpoints/chat-univi \
+  --vision_tower ./checkpoints/clip-vit-large-patch14 \
+  --weight ./outputs/<EXP_NAME>/pytorch_model.bin \
+  --save_path ./outputs/<EXP_NAME>/hf_model \
+  --precision bf16
+```
+
+For normal evaluation with this repository, use `ckpt_model/` directly as `CHECKPOINT_PATH`; conversion is only needed when a consolidated or Hugging Face-style model export is required.
 
 By default, the training code keeps the checkpoint with the best validation gIoU and replaces the previous `ckpt_model/` directory.
 
@@ -131,9 +151,9 @@ bash scripts/train.sh --resume ./outputs/<EXP_NAME>/ckpt_model
 
 ## <span>&#x1F50D;</span> Inference
 
-Trained SIRA checkpoints will be released at [linxir226/SIRA](https://huggingface.co/linxir226/SIRA). Until then, inference requires a checkpoint produced by the training script.
+The released SIRA checkpoint is available at [linxir226/SIRA](https://huggingface.co/linxir226/SIRA).
 
-After release, place the checkpoint directory under `checkpoints/sira/`:
+After downloading, place the checkpoint directory under `checkpoints/sira/`:
 
 ```text
 checkpoints/
@@ -153,6 +173,7 @@ bash scripts/valid_inference.sh
 ```
 
 `CHECKPOINT_PATH` must point to the DeepSpeed checkpoint directory containing `latest`, rather than to `global_step*`, `meta_log_epoch*.pth`, or an individual `.pt` file. 
+
 Visualization is disabled by default. To save visual results, append `--vis_enable`; outputs are written to `${OUTPUT_DIR}/${EXP_NAME}/inference` or `${OUTPUT_DIR}/${EXP_NAME}/class_inference` by default. Validation uses the first GPU from `GPU_IDS` unless `EVAL_GPU_IDS` is set explicitly.
 
 Inference with metrics grouped by reasoning-query type:
@@ -182,4 +203,4 @@ This project is released under the MIT License. See [LICENSE](LICENSE) for detai
 
 This work is built upon [VRS-HQ](https://github.com/SitongGong/VRS-HQ), [Chat-UniVi](https://github.com/PKU-YuanGroup/Chat-UniVi), [VISA](https://github.com/cilinyan/VISA), and [SAM 2](https://github.com/facebookresearch/sam2). We sincerely thank the authors for their excellent contributions.
 
-The retained or adapted components remain subject to their respective licenses. The `sam2/` implementation is derived from SAM 2.
+The retained or adapted components remain subject to their respective licenses.
