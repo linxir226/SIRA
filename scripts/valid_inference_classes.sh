@@ -30,5 +30,4 @@ deepspeed --master_port="${MASTER_PORT}" valid_inference_classes.py \
    --class_meta_json "${DATA_ROOT}/SurgRS/instance_classes.json" \
    --classified_json "${DATA_ROOT}/SurgRS/surgrs_valid_classified.json" \
    --vis_save_path="${OUTPUT_DIR}/sira_class_inference" \
-   --vis_enable \
    "$@"

@@ -153,6 +153,7 @@ bash scripts/valid_inference.sh
 ```
 
 `CHECKPOINT_PATH` must point to the DeepSpeed checkpoint directory containing `latest`, rather than to `global_step*`, `meta_log_epoch*.pth`, or an individual `.pt` file. 
+Visualization is disabled by default. To save visual results, append `--vis_enable`; outputs are written to `${OUTPUT_DIR}/sira_inference` or `${OUTPUT_DIR}/sira_class_inference`.
 
 Inference with metrics grouped by reasoning-query type:
 

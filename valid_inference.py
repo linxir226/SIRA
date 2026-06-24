@@ -155,7 +155,7 @@ def parse_args(args):
     )
     parser.add_argument("--vis_alpha", default=0.5, type=float)
     parser.add_argument("--vis_rank_subdir", action="store_true", default=True)
-    parser.add_argument("--vis_enable", action="store_true", default=True)
+    parser.add_argument("--vis_enable", action="store_true", default=False)
     parser.add_argument("--vis_save_all_frames", action="store_true", default=False)  # True=序列每帧都存；False=只存第一帧
 
     return parser.parse_args(args)
@@ -477,106 +477,107 @@ def validate_cell_type(val_loader, model_engine, args):
         # ============================
         # Visualization (per-sample)
         # ============================
-        try:
-            image_bgr = read_image_bgr(img_path)
+        if args.vis_enable:
+            try:
+                image_bgr = read_image_bgr(img_path)
 
-            if image_bgr is None:
-                # 如果 dataset 没给路径或者路径读不到，就不保存（但不影响评测）
-                if args.local_rank == 0:
-                    logging.warning(f"[VIS] skip: cannot read image path: {img_path}")
-            else:
-                # 文件名：尽量稳定且不冲突
-                # 如果路径存在，用文件名；否则用计数
-                if img_path is not None:
-                    base = os.path.splitext(os.path.basename(img_path))[0]
+                if image_bgr is None:
+                    # 如果 dataset 没给路径或者路径读不到，就不保存（但不影响评测）
+                    if args.local_rank == 0:
+                        logging.warning(f"[VIS] skip: cannot read image path: {img_path}")
                 else:
-                    base = f"sample_{int(time.time()*1000)}"
+                    # 文件名：尽量稳定且不冲突
+                    # 如果路径存在，用文件名；否则用计数
+                    if img_path is not None:
+                        base = os.path.splitext(os.path.basename(img_path))[0]
+                    else:
+                        base = f"sample_{int(time.time()*1000)}"
 
-                # 分布式避免冲突：每个 rank 单独子目录（推荐）
-                video_id = guess_video_id(img_path)  # 你之前加的那个函数
-                frame_folder = base                    # base 就是图片名(不含后缀)
+                    # 分布式避免冲突：每个 rank 单独子目录（推荐）
+                    video_id = guess_video_id(img_path)  # 你之前加的那个函数
+                    frame_folder = base                    # base 就是图片名(不含后缀)
 
-                # ------- 1) 每张图一个文件夹 -------
-                if getattr(args, "vis_rank_subdir", True):
-                    save_root = os.path.join(args.vis_save_path, f"rank{args.local_rank}", video_id, frame_folder)
-                else:
-                    save_root = os.path.join(args.vis_save_path, video_id, frame_folder)
-                # ------- 2) 保存整图 all/ + original -------
-                save_all_bundle_only(
-                    save_root=save_root,
-                    image_bgr=image_bgr,
-                    pred_masks_NHW=output_list,
-                    gt_masks_NHW=masks_list,
-                    category_ids_N=category_ids,
-                    id2bgr=args._id2bgr,
-                    id2title=args._id2title,
-                    alpha=getattr(args, "vis_alpha", 0.5),
-                )
-
-                # ------- 3) 问题 all/ + meta.json -------
-                img_meta = {
-                    "image_path": img_path,
-                    "instance_category_ids": [int(x) for x in category_ids],
-                    "qa": [
-                        {
-                            "q_index": i + 1,
-                            "question": questions[i],
-                            "sampled_class": sampled_classes[i] if i < len(sampled_classes) else "",
-                            "answer": answers[i] if i < len(answers) else "",
-                            "focus_category_ids": focus_ids_per_q[i] if i < len(focus_ids_per_q) else [],
-                        }
-                        for i in range(len(questions))
-                    ],
-                }
-                os.makedirs(save_root, exist_ok=True)
-                with open(os.path.join(save_root, "meta.json"), "w", encoding="utf-8") as f:
-                    json.dump(img_meta, f, ensure_ascii=False, indent=2)
-
-                # ------- 4) 每题一个文件夹 q001/q002... -------
-                for i in range(len(questions)):
-                    q_idx = i + 1
-                    q_dir = os.path.join(save_root, f"q{q_idx:03d}")
-                    focus_ids = focus_ids_per_q[i] if i < len(focus_ids_per_q) else []
-
-                    pred_sel, gt_sel, cid_sel = pick_masks_for_question_by_cids(
+                    # ------- 1) 每张图一个文件夹 -------
+                    if getattr(args, "vis_rank_subdir", True):
+                        save_root = os.path.join(args.vis_save_path, f"rank{args.local_rank}", video_id, frame_folder)
+                    else:
+                        save_root = os.path.join(args.vis_save_path, video_id, frame_folder)
+                    # ------- 2) 保存整图 all/ + original -------
+                    save_all_bundle_only(
+                        save_root=save_root,
+                        image_bgr=image_bgr,
                         pred_masks_NHW=output_list,
                         gt_masks_NHW=masks_list,
                         category_ids_N=category_ids,
-                        focus_ids=focus_ids
-                    )
-
-                    # 保存该题主输出 + by_class + meta.json（用我上次给你的 save_question_bundle）
-                    save_question_bundle(
-                        q_dir=q_dir,
-                        q_idx=q_idx,
-                        question=questions[i],
-                        answer=answers[i] if i < len(answers) else "",
-                        focus_ids=focus_ids,
-                        image_bgr=image_bgr,
-                        pred_masks_sel=pred_sel,
-                        gt_masks_sel=gt_sel,
-                        pred_cids_sel=cid_sel,
-                        gt_cids_sel=cid_sel,
                         id2bgr=args._id2bgr,
                         id2title=args._id2title,
                         alpha=getattr(args, "vis_alpha", 0.5),
                     )
 
-                    # 题级 meta.json 里建议额外写 sampled_class，便于回溯
-                    q_meta = {
-                        "q_index": q_idx,
-                        "question": questions[i],
-                        "sampled_class": sampled_classes[i],
-                        "answer": answers[i] if i < len(answers) else "",
-                        "focus_category_ids": focus_ids,
+                    # ------- 3) 问题 all/ + meta.json -------
+                    img_meta = {
                         "image_path": img_path,
+                        "instance_category_ids": [int(x) for x in category_ids],
+                        "qa": [
+                            {
+                                "q_index": i + 1,
+                                "question": questions[i],
+                                "sampled_class": sampled_classes[i] if i < len(sampled_classes) else "",
+                                "answer": answers[i] if i < len(answers) else "",
+                                "focus_category_ids": focus_ids_per_q[i] if i < len(focus_ids_per_q) else [],
+                            }
+                            for i in range(len(questions))
+                        ],
                     }
-                    with open(os.path.join(q_dir, "meta.json"), "w", encoding="utf-8") as f:
-                        json.dump(q_meta, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            if args.local_rank == 0:
-                logging.warning(f"[VIS] exception: {e}")
-                logging.warning(traceback.format_exc())
+                    os.makedirs(save_root, exist_ok=True)
+                    with open(os.path.join(save_root, "meta.json"), "w", encoding="utf-8") as f:
+                        json.dump(img_meta, f, ensure_ascii=False, indent=2)
+
+                    # ------- 4) 每题一个文件夹 q001/q002... -------
+                    for i in range(len(questions)):
+                        q_idx = i + 1
+                        q_dir = os.path.join(save_root, f"q{q_idx:03d}")
+                        focus_ids = focus_ids_per_q[i] if i < len(focus_ids_per_q) else []
+
+                        pred_sel, gt_sel, cid_sel = pick_masks_for_question_by_cids(
+                            pred_masks_NHW=output_list,
+                            gt_masks_NHW=masks_list,
+                            category_ids_N=category_ids,
+                            focus_ids=focus_ids
+                        )
+
+                        # 保存该题主输出 + by_class + meta.json（用我上次给你的 save_question_bundle）
+                        save_question_bundle(
+                            q_dir=q_dir,
+                            q_idx=q_idx,
+                            question=questions[i],
+                            answer=answers[i] if i < len(answers) else "",
+                            focus_ids=focus_ids,
+                            image_bgr=image_bgr,
+                            pred_masks_sel=pred_sel,
+                            gt_masks_sel=gt_sel,
+                            pred_cids_sel=cid_sel,
+                            gt_cids_sel=cid_sel,
+                            id2bgr=args._id2bgr,
+                            id2title=args._id2title,
+                            alpha=getattr(args, "vis_alpha", 0.5),
+                        )
+
+                        # 题级 meta.json 里建议额外写 sampled_class，便于回溯
+                        q_meta = {
+                            "q_index": q_idx,
+                            "question": questions[i],
+                            "sampled_class": sampled_classes[i],
+                            "answer": answers[i] if i < len(answers) else "",
+                            "focus_category_ids": focus_ids,
+                            "image_path": img_path,
+                        }
+                        with open(os.path.join(q_dir, "meta.json"), "w", encoding="utf-8") as f:
+                            json.dump(q_meta, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                if args.local_rank == 0:
+                    logging.warning(f"[VIS] exception: {e}")
+                    logging.warning(traceback.format_exc())
 
 
         ### 文本与保存
