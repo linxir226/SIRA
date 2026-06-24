@@ -86,11 +86,13 @@ $DATA_ROOT/
 
 ## <span>&#x1F680;</span> Training
 
+GPU IDs, port, experiment name, and output root are configured in `scripts/config.sh`. The default configuration uses GPUs 0 and 1 and writes training outputs to `./outputs/sira`. 
+
 ```bash
 DATA_ROOT=/path/to/datasets OUTPUT_DIR=./outputs bash scripts/train.sh
 ```
 
-GPU IDs, port, experiment name, and output root are configured in `scripts/config.sh`. The default configuration uses GPUs 0 and 1 and writes training outputs to `./outputs/sira`. A single-GPU run can be launched without editing the script, but `steps_per_epoch` should be doubled to keep the same number of processed samples per epoch as the two-GPU setting:
+A single-GPU run can be launched without editing the script, but `steps_per_epoch` should be doubled to keep the same number of processed samples per epoch as the two-GPU setting:
 
 ```bash
 GPU_IDS=0 DATA_ROOT=/path/to/datasets OUTPUT_DIR=./outputs \
