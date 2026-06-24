@@ -11,7 +11,7 @@ import transformers
 from peft import LoraConfig, get_peft_model
 from transformers import AutoTokenizer
 
-from model.VISA_multiseg import VrshqForCausalLM
+from model.SIRA_multiseg import SiraForCausalLM
 # from utils.utils import DEFAULT_IM_END_TOKEN, DEFAULT_IM_START_TOKEN
 
 DEFAULT_IM_START_TOKEN = "<im_start>"
@@ -80,7 +80,7 @@ def main(args):
         torch_dtype = torch.bfloat16
     elif args.precision == "fp16":
         torch_dtype = torch.half
-    model = VrshqForCausalLM.from_pretrained(pretrained_model_name_or_path=args.version, torch_dtype=torch_dtype,
+    model = SiraForCausalLM.from_pretrained(pretrained_model_name_or_path=args.version, torch_dtype=torch_dtype,
                                             **model_args)
     model.config.eos_token_id = tokenizer.eos_token_id
     model.config.bos_token_id = tokenizer.bos_token_id

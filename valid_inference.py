@@ -28,7 +28,7 @@ from transformers import AutoConfig
 from peft import LoraConfig, get_peft_model
 from torch.utils.tensorboard import SummaryWriter
 
-from model.VISA_multiseg import VrshqForCausalLM
+from model.SIRA_multiseg import SiraForCausalLM
 from model.univi.config import ModelConfig, DataConfig
 from model.llava import conversation as conversation_lib      # 为了测试暂时注释这三行代码
 from dataset.multi_dataset import HybridDataset, ValDataset, collate_fn
@@ -39,7 +39,7 @@ from dataset.utils import (
 )
 
 def parse_args(args):
-    parser = argparse.ArgumentParser(description="VISA Model Training")
+    parser = argparse.ArgumentParser(description="SIRA Model Inference")
     parser.add_argument("--local_rank", default=0, type=int, help="node rank")
     parser.add_argument(
         "--version", default="./checkpoints/chat-univi"
@@ -240,7 +240,7 @@ def main(args):
         torch_dtype = torch.half
 
     # 使用llm预训练方法加载模型，后面补充sam2方法
-    model = VrshqForCausalLM.from_pretrained(
+    model = SiraForCausalLM.from_pretrained(
         pretrained_model_name_or_path=args.version, torch_dtype=torch_dtype, low_cpu_mem_usage=True, **model_args
     )
     model.config.eos_token_id = tokenizer.eos_token_id # 2
