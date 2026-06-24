@@ -390,8 +390,8 @@ def main(args):
             int(ckpt_dir.replace("global_step", "")) // args.steps_per_epoch
         )
         logging.info(
-            "resume training from {}, start from epoch {}".format(
-                args.resume, args.start_epoch
+            "loaded checkpoint from {}, global step {}, inferred start epoch {}".format(
+                args.resume, ckpt_dir.replace("global_step", ""), args.start_epoch
             )
         )
 
@@ -482,7 +482,7 @@ def validate_cell_type(val_loader, model_engine, args):
         assert output_list.shape == masks_list.shape
         if output_list.numel() == 0:
             continue
-        category_ids = category_ids[0]
+        category_ids = flatten_category_ids(category_ids[0])
 
         # ============================
         # Visualization (per-sample)
@@ -972,6 +972,23 @@ def load_instance_classes(json_path: str):
     return id2rgb, id2title, id_order
 
 
+def flatten_category_ids(values):
+    if values is None:
+        return []
+    if torch.is_tensor(values):
+        if values.numel() == 0:
+            return []
+        return [int(x) for x in values.detach().cpu().reshape(-1).tolist()]
+    if isinstance(values, np.ndarray):
+        return [int(x) for x in values.reshape(-1).tolist()]
+    if isinstance(values, (list, tuple)):
+        out = []
+        for item in values:
+            out.extend(flatten_category_ids(item))
+        return out
+    return [int(values)]
+
+
 def extract_qa_from_inputdict(input_dict):
     """
     适配你给出的真实结构（batch=1）：
@@ -1028,24 +1045,11 @@ def extract_qa_from_inputdict(input_dict):
     while len(answers) < Q: answers.append("")
 
     # 6) category_ids：batch=1 -> 取 [0] 得到 cid 序列（list[int]）
-    cid_list = []
     cids = input_dict.get("category_ids", None)
-    if isinstance(cids, (list, tuple)):
-        if len(cids) == 0:
-            cid_list = []
-        # B1: [[...]] 这 种嵌套 list
-        elif isinstance(cids[0], (list, tuple)):
-            cid_list = [int(x) for x in cids[0]]
-        # B2: [tensor([...])] 这种：第一个元素是 Tensor 向量
-        elif torch.is_tensor(cids[0]):
-            t0 = cids[0]
-            if t0.dim() >= 2:
-                cid_list = [int(x) for x in t0[0].tolist()]
-            else:
-                cid_list = [int(x) for x in t0.tolist()]
-        # B3: [10,11,13,...] 这种纯 int list
-        else:
-            cid_list = [int(x) for x in cids]
+    if isinstance(cids, (list, tuple)) and len(cids) > 0:
+        cid_list = flatten_category_ids(cids[0])
+    else:
+        cid_list = flatten_category_ids(cids)
 
     # Split category IDs according to the number of <SEG> tokens per answer.
     focus_ids_per_q = []
