@@ -438,8 +438,9 @@ def validate_cell_type(val_loader, model_engine, args):
     bleu_meter = AverageMeter("BLEU4", fmt=":6.3f", summary_type=Summary.AVERAGE)
     f1_meter = AverageMeter("TextF1", fmt=":6.3f", summary_type=Summary.AVERAGE)
 
-    # 逐样本落盘（rank0）
+    # Per-sample records are gathered from all ranks before writing.
     per_sample_rows = []
+    text_rows = []
 
     model_engine.eval()
     category_metrics = {}
@@ -607,6 +608,12 @@ def validate_cell_type(val_loader, model_engine, args):
         last_qidx = -1
         if len(output_list) == 0:
             continue
+        sample_intersection = 0.0
+        sample_union = 0.0
+        sample_ious = []
+        sample_dices = []
+        sample_cat_ids = []
+        sample_qtype_ids = []
         for mask_i, output_i, cat in zip(masks_list, output_list, category_ids):
             intersection, union, _ = intersectionAndUnionGPU(
                 output_i.contiguous().clone(), mask_i.contiguous(), 2, ignore_index=255
@@ -615,12 +622,16 @@ def validate_cell_type(val_loader, model_engine, args):
             fg_union = union[1].item()
             # 当并集为 0（空目标）时定义 IoU 为 1.0
             fg_iou = 1.0 if fg_union == 0 else fg_intersection / (fg_union + 1e-5)
+            sample_intersection += fg_intersection
+            sample_union += fg_union
+            sample_ious.append(float(fg_iou))
 
             overall_intersection.update(fg_intersection, n=1)
             overall_union.update(fg_union, n=1)
             overall_iou.update(fg_iou, n=1)
 
             cat_id = int(cat.item()) if torch.is_tensor(cat) else int(cat)
+            sample_cat_ids.append(cat_id)
             if cat_id not in category_metrics:
                 category_metrics[cat_id] = {
                     "count": AverageMeter(
@@ -649,14 +660,17 @@ def validate_cell_type(val_loader, model_engine, args):
 
             d = dice_fg(output_i, mask_i, ignore_index=255)
             if d is not None:
-                dice_meter.update(d.item(), n=1)
-                category_metrics[cat_id]["dice"].update(d.item(), n=1)
+                dice_value = float(d.item())
+                sample_dices.append(dice_value)
+                dice_meter.update(dice_value, n=1)
+                category_metrics[cat_id]["dice"].update(dice_value, n=1)
 
             # ================= 修正：从 mask -> question 对齐 qtype =================
             if qtype_ids_for_img is not None and question_idx < len(qtype_ids_for_img):
                 qid = int(qtype_ids_for_img[question_idx])
             else:
                 qid = -1
+            sample_qtype_ids.append(qid)
 
             # (A) qtype 级别
             if qid not in qtype_metrics:
@@ -732,6 +746,17 @@ def validate_cell_type(val_loader, model_engine, args):
                 else:
                     remain_in_question = 0
 
+        per_sample_rows.append({
+            "image": img_path if img_path else f"rank{args.local_rank}_idx_{len(per_sample_rows)}",
+            "num_masks": len(sample_ious),
+            "category_ids": sample_cat_ids,
+            "qtype_ids": sample_qtype_ids,
+            "qtype_names": [qid2name.get(qid, "UNKNOWN") if qid >= 0 else "UNKNOWN" for qid in sample_qtype_ids],
+            "ciou": 1.0 if sample_union == 0 else sample_intersection / (sample_union + 1e-10),
+            "giou": float(sum(sample_ious) / len(sample_ious)) if sample_ious else 0.0,
+            "dice": float(sum(sample_dices) / len(sample_dices)) if sample_dices else 0.0,
+        })
+
         # ---------- text metrics (if available) ----------
         gt_text, pred_text = extract_text_gt_pred(input_dict, output_dict)
         if gt_text is not None and pred_text is not None:
@@ -740,9 +765,8 @@ def validate_cell_type(val_loader, model_engine, args):
             bleu_meter.update(b4, n=1)
             f1_meter.update(f1, n=1)
 
-            # 逐样本记录（建议用图片名做主键）
-            img_key = img_path if img_path else f"idx_{len(per_sample_rows)}"
-            per_sample_rows.append({
+            img_key = img_path if img_path else f"rank{args.local_rank}_idx_{len(text_rows)}"
+            text_rows.append({
                 "image": img_key, # 应配合video
                 "bleu4": b4,
                 "text_f1": f1,
@@ -771,6 +795,12 @@ def validate_cell_type(val_loader, model_engine, args):
         for key in qtype_category_metrics:
             for meter in qtype_category_metrics[key].values():
                 meter.all_reduce()
+        gathered_per_sample_rows = [None for _ in range(dist.get_world_size())]
+        gathered_text_rows = [None for _ in range(dist.get_world_size())]
+        dist.all_gather_object(gathered_per_sample_rows, per_sample_rows)
+        dist.all_gather_object(gathered_text_rows, text_rows)
+        per_sample_rows = [row for rows in gathered_per_sample_rows for row in rows]
+        text_rows = [row for rows in gathered_text_rows for row in rows]
 
 
     results = {}
@@ -854,23 +884,24 @@ def validate_cell_type(val_loader, model_engine, args):
             json.dump(metrics, f, ensure_ascii=False, indent=2)
         logging.info(f"Overall metrics saved to {metrics_file}")
 
-        # 2) 保存逐样本（JSONL）
+        # 2) 保存逐样本分割指标（JSONL）
         jsonl_file = args.val_json_name.replace("json", "per_sample.jsonl")
         jsonl_file = f"{args.log_dir}/{jsonl_file}"
         with open(jsonl_file, "w", encoding="utf-8") as f:
             for r in per_sample_rows:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
-        logging.info(f"Per-sample text metrics saved to {jsonl_file}")
+        logging.info(f"Per-sample segmentation metrics saved to {jsonl_file}")
 
-        # 3) 也可另存一个简洁 CSV（只含分数）
-        csv2_file = args.val_json_name.replace("json", "text_scores.csv")
-        csv2_file = f"{args.log_dir}/{csv2_file}"
-        with open(csv2_file, "w", newline="", encoding="utf-8") as f:
-            w = csv.writer(f)
-            w.writerow(["image", "bleu4", "text_f1"])
-            for r in per_sample_rows:
-                w.writerow([r["image"], r["bleu4"], r["text_f1"]])
-        logging.info(f"Text score CSV saved to {csv2_file}")
+        # 3) Text scores are optional. Do not create an empty file when text outputs are unavailable.
+        if text_rows:
+            csv2_file = args.val_json_name.replace("json", "text_scores.csv")
+            csv2_file = f"{args.log_dir}/{csv2_file}"
+            with open(csv2_file, "w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(["image", "bleu4", "text_f1"])
+                for r in text_rows:
+                    w.writerow([r["image"], r["bleu4"], r["text_f1"]])
+            logging.info(f"Text score CSV saved to {csv2_file}")
 
         # --- 新增：保存 qtype_summary.csv ---
         qtype_csv = args.val_json_name.replace("json", "qtype_summary.csv")

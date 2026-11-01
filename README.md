@@ -1,6 +1,8 @@
 # SIRA
 
-Official implementation of **SIRA: Reasoning-Aware Surgical Instrument Segmentation via Query-Anchored Alignment**.
+Official implementation of **SIRA: Reasoning-Aware Surgical Instrument Segmentation via Query-Anchored Alignment** (**MICCAI 2026**).
+
+[Paper (Springer)](https://doi.org/10.1007/978-3-032-38233-7_46) | [Open Access PDF](https://papers.miccai.org/miccai-2026/paper/1772_paper.pdf) | [arXiv](https://arxiv.org/abs/2609.21402)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
@@ -188,14 +190,24 @@ bash scripts/valid_inference_classes.sh
 
 ## <span>&#x1F31F;</span> Citation
 
+If you find SIRA or SurgRS useful in your research, please cite our paper:
+
 ```bibtex
-@misc{zhang2026sira,
-  title={SIRA: Reasoning-Aware Surgical Instrument Segmentation via Query-Anchored Alignment},
+@inproceedings{zhang2027sira,
+  title={{SIRA}: Reasoning-Aware Surgical Instrument Segmentation via Query-Anchored Alignment},
   author={Zhang, Zhibo and Wang, Qijie and Yan, Zengqiang},
-  year={2026},
-  url={https://github.com/linxir226/SIRA}
+  booktitle={Medical Image Computing and Computer Assisted Intervention -- MICCAI 2026},
+  year={2027},
+  series={Lecture Notes in Computer Science},
+  volume={16892},
+  pages={487--497},
+  publisher={Springer Nature Switzerland},
+  doi={10.1007/978-3-032-38233-7_46},
+  url={https://doi.org/10.1007/978-3-032-38233-7_46}
 }
 ```
+
+The citation year follows Springer's published proceedings metadata (2027); the conference is MICCAI 2026.
 
 ## <span>&#x1F4DD;</span> License
 
